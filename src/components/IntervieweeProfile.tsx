@@ -88,10 +88,7 @@ const IntervieweeProfile: React.FC<IntervieweeProfileProps> = ({
       const { finalDetails, questionBank } = data;
       const { name, email, phone, rawText } = finalDetails;
 
-      console.log(name, email, phone);
-
       if (finalDetails.name && questionBank.length > 0) {
-        console.log("questionBank from AI:", questionBank);
         dispatch(startNewSession());
         dispatch(setQuestionBank(questionBank));
 
