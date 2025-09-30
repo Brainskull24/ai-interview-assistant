@@ -1,15 +1,6 @@
 import { NextResponse } from "next/server";
-import {
-  extractTextFromBlob,
-  parseProfileData,
-} from "@/services/resumeService";
-import { fetchProfileDetails, generateQuestions } from "@/services/aiService"; 
-
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
+import { fetchProfileDetails, generateQuestions } from "@/services/aiService";
+import { parseProfileData } from "@/services/resumeService"; // keep fallback here
 
 export async function POST(request: Request) {
   try {
@@ -17,34 +8,41 @@ export async function POST(request: Request) {
     const file = formData.get("resume") as File | null;
 
     if (!file) {
-      return NextResponse.json({ error: "No file uploaded." }, { status: 400 });
+      return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
     }
 
-    const fileArrayBuffer = await file.arrayBuffer();
-    const fileBuffer = Buffer.from(fileArrayBuffer);
-    const fileName = file.name;
+    const beFormData = new FormData();
+    beFormData.append("resume", file);
 
-    const rawText = await extractTextFromBlob(fileBuffer, fileName);
+    const rawTextRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/parse-resume`, {
+      method: "POST",
+      body: beFormData,
+    });
 
+    const { rawText } = await rawTextRes.json();
+
+    // ✅ AI step
     const aiDetails = await fetchProfileDetails(rawText);
 
     const finalDetails = {
-      rawText: rawText,
+      rawText,
       name: aiDetails.name,
       email: aiDetails.email,
       phone: aiDetails.phone,
     };
 
+    // ✅ fallback if AI misses something
     if (!finalDetails.name || !finalDetails.email || !finalDetails.phone) {
       const fallbackDetails = parseProfileData(rawText);
-
       finalDetails.name = finalDetails.name || fallbackDetails.name;
       finalDetails.email = finalDetails.email || fallbackDetails.email;
       finalDetails.phone = finalDetails.phone || fallbackDetails.phone;
     }
 
+    // ✅ generate questions
     const questionBank = await generateQuestions(rawText);
-    return NextResponse.json({ finalDetails, questionBank: questionBank });
+
+    return NextResponse.json({ finalDetails, questionBank });
   } catch (error) {
     console.error("API Error processing resume:", error);
     return NextResponse.json(
