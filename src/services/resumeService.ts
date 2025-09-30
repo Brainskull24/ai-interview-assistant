@@ -11,36 +11,21 @@ export const extractTextFromBlob = async (
 ): Promise<string> => {
   const fileType = fileName.split(".").pop()?.toLowerCase();
 
+  const pdf = eval("require")("pdf-parse");
+  const mammoth = eval("require")("mammoth");
+
   if (fileBuffer.length > 5 * 1024 * 1024) {
     throw new Error("File size exceeds 5MB limit.");
   }
 
-  if (process.env.NODE_ENV === "production") {
-    if (fileType === "pdf") {
-      // dynamic ESM import (works in Vercel serverless)
-      const pdf = await import("pdf-parse");
-      const data = await pdf.default(fileBuffer);
-      return data.text;
-    } else if (fileType === "docx") {
-      const mammoth = await import("mammoth");
-      const result = await mammoth.extractRawText({ buffer: fileBuffer });
-      return result.value;
-    } else if (fileType === "txt") {
-      return fileBuffer.toString("utf8");
-    }
-  } else {
-    const pdf = eval("require")("pdf-parse");
-    const mammoth = eval("require")("mammoth");
-
-    if (fileType === "pdf") {
-      const data = await pdf(fileBuffer);
-      return data.text;
-    } else if (fileType === "docx") {
-      const result = await mammoth.extractRawText({ buffer: fileBuffer });
-      return result.value;
-    } else if (fileType === "txt") {
-      return fileBuffer.toString("utf8");
-    }
+  if (fileType === "pdf") {
+    const data = await pdf(fileBuffer);
+    return data.text;
+  } else if (fileType === "docx") {
+    const result = await mammoth.extractRawText({ buffer: fileBuffer });
+    return result.value;
+  } else if (fileType === "txt") {
+    return fileBuffer.toString("utf8");
   }
 
   throw new Error(
