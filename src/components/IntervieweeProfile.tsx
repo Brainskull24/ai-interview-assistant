@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/card";
 import { Check, Loader2, Zap } from "lucide-react";
 import { AppDispatch } from "@/store/store";
+import { parseProfileData } from "@/services/resumeService";
+import { fetchProfileDetails, generateQuestions } from "@/services/aiService";
 
 interface IntervieweeProfileProps {
   onStartChat: () => void;
@@ -70,23 +72,51 @@ const IntervieweeProfile: React.FC<IntervieweeProfileProps> = ({
       const formData = new FormData();
       formData.append("resume", file);
 
-      const response = await fetch("/api/resume", {
+      // const response = await fetch("/api/resume", {
+      //   method: "POST",
+      //   body: formData,
+      // });
+
+      const rawTextRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/parse-resume`, {
         method: "POST",
         body: formData,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
+      if (!rawTextRes.ok) {
+        const errorData = await rawTextRes.json();
         throw new Error(
           errorData.error || "Failed to process resume on the server."
         );
       }
+  
+      const { rawText } = await rawTextRes.json();
+  
+      // ✅ AI step
+      const aiDetails = await fetchProfileDetails(rawText);
+  
+      const finalDetails = {
+        rawText,
+        name: aiDetails.name,
+        email: aiDetails.email,
+        phone: aiDetails.phone,
+      };
+  
+      // ✅ fallback if AI misses something
+      if (!finalDetails.name || !finalDetails.email || !finalDetails.phone) {
+        const fallbackDetails = parseProfileData(rawText);
+        finalDetails.name = finalDetails.name || fallbackDetails.name;
+        finalDetails.email = finalDetails.email || fallbackDetails.email;
+        finalDetails.phone = finalDetails.phone || fallbackDetails.phone;
+      }
+  
+      // ✅ generate questions
+      const questionBank = await generateQuestions(rawText);
 
-      const responseText = await response.text();
-      const data = JSON.parse(responseText);
+      // const responseText = await response.text();
+      // const data = JSON.parse(responseText);
 
-      const { finalDetails, questionBank } = data;
-      const { name, email, phone, rawText } = finalDetails;
+      // const { finalDetails, questionBank } = data;
+      const { name, email, phone } = finalDetails;
 
       if (finalDetails.name && questionBank.length > 0) {
         dispatch(startNewSession());
